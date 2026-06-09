@@ -5,6 +5,12 @@ import com.github.noamm9.event.impl.ContainerFullyOpenedEvent
 import com.github.noamm9.event.impl.MainThreadPacketReceivedEvent
 import com.github.noamm9.features.Feature
 import com.github.noamm9.features.impl.misc.ScrollableTooltip
+import com.github.noamm9.ui.clickgui.components.impl.ButtonSetting
+import com.github.noamm9.ui.clickgui.components.impl.CallbackTextSetting
+import com.github.noamm9.ui.clickgui.components.impl.CallbackToggleSetting
+import com.github.noamm9.ui.clickgui.components.impl.CategorySetting
+import com.github.noamm9.ui.clickgui.components.impl.FoldableSetting
+import com.github.noamm9.ui.clickgui.components.impl.PageColorSetting
 import com.github.noamm9.ui.clickgui.components.impl.SliderSetting
 import com.github.noamm9.ui.clickgui.components.impl.ToggleSetting
 import com.github.noamm9.utils.ChatUtils.unformattedText
@@ -50,6 +56,8 @@ object StorageOverlay: Feature("Shows all storage pages in an overlay when openi
     )
 
     override fun init() {
+        buildCustomizationSettings()
+
         register<ContainerFullyOpenedEvent> {
             if (! LocationUtils.inSkyblock) return@register
             val screen = mc.screen as? ContainerScreen ?: return@register
@@ -99,6 +107,37 @@ object StorageOverlay: Feature("Shows all storage pages in an overlay when openi
         }
 
         return null
+    }
+
+    private fun buildCustomizationSettings() {
+        configSettings.add(CategorySetting("Customization"))
+        val top = FoldableSetting({ "Page Customization" })
+        configSettings.add(top)
+
+        for (i in 0 until 27) {
+            val page = StoragePage(i)
+            val header = FoldableSetting({ StorageCustomization.nameFor(page) }).also { it.visibility = { top.expanded } }
+            configSettings.add(header)
+
+            val childVisible = { top.expanded && header.expanded }
+
+            configSettings.add(
+                CallbackTextSetting("Name", { StorageCustomization.nameOnly(i) }, { StorageCustomization.setName(i, it) }, placeholder = page.name)
+                    .also { it.visibility = childVisible; it.description = "Custom name for this page. Leave empty for the default." }
+            )
+            configSettings.add(
+                PageColorSetting("Border Color", StorageCustomization.colorFor(i)) { c -> StorageCustomization.setColor(i, c) }
+                    .also { it.visibility = childVisible; it.description = "Border color for this page. Defaults to the accent color." }
+            )
+            configSettings.add(
+                CallbackToggleSetting("Always Show Border", { StorageCustomization.alwaysBorderFor(i) }, { StorageCustomization.setAlwaysBorder(i, it) })
+                    .also { it.visibility = childVisible; it.description = "Draw this page's border even when it is not the open page." }
+            )
+            configSettings.add(
+                ButtonSetting("Reset") { StorageCustomization.reset(i) }
+                    .also { it.visibility = childVisible; it.description = "Reset this page's customization to defaults." }
+            )
+        }
     }
 
     private fun saveContent(menu: StorageMenu) {

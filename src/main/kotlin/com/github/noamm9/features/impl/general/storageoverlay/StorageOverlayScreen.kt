@@ -243,6 +243,7 @@ class StorageOverlayScreen: Screen(Component.literal("Storage Overlay")) {
         val name = StorageCustomization.nameFor(page)
         val isActive = slots != null
         val showBorder = isActive || StorageCustomization.alwaysBorderFor(page.index)
+        val showName = isActive || StorageCustomization.alwaysNameFor(page.index)
         val pageColor = StorageCustomization.colorFor(page.index)
         val slotsY = y + 5 + font.lineHeight
         val pageHeight = rows * SLOT_SIZE + 8 + font.lineHeight
@@ -251,7 +252,7 @@ class StorageOverlayScreen: Screen(Component.literal("Storage Overlay")) {
             Render2D.drawBorder(this, x, y, PAGE_WIDTH + 1, pageHeight, pageColor, ACTIVE_PAGE_BORDER_THICKNESS)
         }
 
-        drawString(font, Component.literal(name), x + 6, y + 3, if (showBorder) pageColor.rgb else 0xFFFFFF, true)
+        if (showName) drawString(font, Component.literal(name), x + 6, y + 3, pageColor.rgb, true)
 
         val panelX = scrollPanelX
         val panelY = scrollPanelY

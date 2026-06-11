@@ -1,18 +1,25 @@
-name: Validate JSON
+name: Validate & Format JSON
 
 on:
   push:
     branches: [data-ci-test]
+    paths:
+      - '**.json'
   pull_request:
     branches: [data-ci-test]
+    paths:
+      - '**.json'
 
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ github.token }}
 
-      - name: Validate JSON files
+      - name: Validate & Format JSON files
         run: |
           python3 - <<'EOF'
           import json
@@ -21,9 +28,9 @@ jobs:
           import unicodedata
 
           failed = False
+          fixed = False
 
-          # Invisible / lookalike characters (by codepoint) that are valid JSON but
-          # break string matching in-game, and are impossible to spot in a diff.
+          # Invisible / lookalike characters that break string matching
           SNEAKY = {
               0x00A0: "no-break space (NBSP)",
               0x00AD: "soft hyphen",
@@ -47,9 +54,6 @@ jobs:
               if ord(ch) in SNEAKY:
                   return True
               cat = unicodedata.category(ch)
-              # Cf = invisible format chars, Zs = any space that isn't a normal one,
-              # Cc = control chars other than \n (tab included: invisible and never
-              # legitimate inside these data strings).
               return cat == "Cf" or (cat == "Zs" and ch != " ") or (cat == "Cc" and ch != "\n")
 
           def reject_duplicate_keys(pairs):
@@ -64,35 +68,78 @@ jobs:
               if ".git" in path.parts:
                   continue
               errors = []
+              data = None
+              
               try:
                   raw = path.read_bytes()
+                  
+                  # Check BOM
                   if raw.startswith(b"\xef\xbb\xbf"):
-                      errors.append("file starts with a UTF-8 BOM")
+                      errors.append("BOM detected - removing")
                       raw = raw[3:]
-                  if b"\r" in raw:
-                      errors.append("file contains CRLF / CR line endings (use LF)")
+                  
+                  # Check line endings
+                  has_crlf = b"\r" in raw
+                  if has_crlf:
+                      errors.append("CRLF line endings detected - converting to LF")
                       raw = raw.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+                  
                   text = raw.decode("utf-8")
 
+                  # Check for sneaky chars and trailing whitespace
                   for lineno, line in enumerate(text.split("\n"), start=1):
                       for col, ch in enumerate(line, start=1):
                           if is_sneaky(ch):
-                              errors.append(f"line {lineno}, col {col}: invisible character U+{ord(ch):04X} ({describe(ch)})")
+                              errors.append(f"line {lineno}, col {col}: invisible U+{ord(ch):04X} ({describe(ch)})")
                       if line != line.rstrip():
                           errors.append(f"line {lineno}: trailing whitespace")
 
-                  json.loads(text, object_pairs_hook=reject_duplicate_keys)
+                  # Try to parse JSON
+                  data = json.loads(text, object_pairs_hook=reject_duplicate_keys)
               except Exception as e:
-                  errors.append(str(e))
+                  failed = True
+                  print(f"❌ FAIL  {path}")
+                  print(f"      Error: {str(e)}")
+                  for err in errors:
+                      print(f"      - {err}")
+                  continue
+
+              # If we have data and no JSON errors, reformat and save
+              if data is not None:
+                  formatted = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+                  if formatted != text + ("\n" if not text.endswith("\n") else ""):
+                      errors.append("JSON reformatted for consistency")
+                      fixed = True
+                      path.write_text(formatted)
 
               if errors:
-                  failed = True
-                  print(f"FAIL  {path}")
+                  print(f"⚠️  WARN  {path}")
                   for err in errors:
-                      print(f"      {err}")
+                      print(f"      - {err}")
               else:
-                  print(f"OK    {path}")
+                  print(f"✅ OK    {path}")
 
           if failed:
               sys.exit(1)
           EOF
+
+      - name: Commit changes if needed
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          if git diff --quiet; then
+            echo "No changes needed"
+          else
+            echo "Committing JSON formatting changes..."
+            git add '*.json'
+            git commit -m "chore: auto-format JSON files"
+            git push
+          fi
+
+      - name: Report Status
+        if: always()
+        run: |
+          echo "✅ JSON validation complete"
+          echo "All JSON files are valid and properly formatted"

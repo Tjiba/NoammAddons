@@ -2,9 +2,9 @@ name: Validate JSON
 
 on:
   push:
-    branches: [data]
+    branches: [data-ci-test]
   pull_request:
-    branches: [data]
+    branches: [data-ci-test]
 
 jobs:
   validate:

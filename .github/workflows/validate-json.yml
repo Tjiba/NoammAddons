@@ -2,11 +2,9 @@ name: Validate & Format JSON
 
 on:
   push:
-    branches: [data-ci-test]
     paths:
       - '**.json'
   pull_request:
-    branches: [data-ci-test]
     paths:
       - '**.json'
 
@@ -16,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          ref: ${{ github.head_ref || github.ref }}
           token: ${{ github.token }}
 
       - name: Validate & Format JSON files

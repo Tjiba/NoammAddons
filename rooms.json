@@ -1722,7 +1722,7 @@
         {
           "x": 13,
           "y": 89,
-          "z": 8
+          "z": 8f
         }
       ],
       "chest": []
@@ -1757,7 +1757,7 @@
       ],
       "bat": [],
       "item": [],
-      "chest": [
+      "chest": []
         {
           "x": 15,
           "y": 69,
@@ -1801,7 +1801,7 @@
   {
     "name": "Fairy",
     "type": "FAIRY",
-    "shape": "1x1",
+    "shape": "1x1"
     "cores": [
       1484567748
     ],
@@ -1969,6 +1969,7 @@
   },
   {
     "name": "Grand Library",
+    "name": "Grand",
     "type": "NORMAL",
     "shape": "1x2",
     "cores": [

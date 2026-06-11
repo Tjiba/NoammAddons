@@ -28,7 +28,7 @@
   {
     "name": "Criss Cross",
     "type": "NORMAL",
-    "shape": "1x1",
+    "shape": "1x1"
     "cores": [
       650161016
     ],
@@ -642,6 +642,7 @@
   },
   {
     "name": "Bridges",
+    "name": "Bri",
     "type": "NORMAL",
     "shape": "1x2",
     "cores": [

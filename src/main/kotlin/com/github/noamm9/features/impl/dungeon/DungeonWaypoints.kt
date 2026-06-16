@@ -1,10 +1,12 @@
 package com.github.noamm9.features.impl.dungeon
 
+import com.github.noamm9.NoammAddons
 import com.github.noamm9.config.PogObject
 import com.github.noamm9.event.impl.DungeonEvent
 import com.github.noamm9.event.impl.RenderWorldEvent
 import com.github.noamm9.event.impl.WorldChangeEvent
 import com.github.noamm9.features.Feature
+import com.github.noamm9.ui.clickgui.components.impl.ButtonSetting
 import com.github.noamm9.ui.clickgui.components.impl.ColorSetting
 import com.github.noamm9.ui.clickgui.components.impl.DropdownSetting
 import com.github.noamm9.ui.clickgui.components.impl.SliderSetting
@@ -13,6 +15,7 @@ import com.github.noamm9.utils.ChatUtils
 import com.github.noamm9.utils.ColorUtils.withAlpha
 import com.github.noamm9.utils.Utils
 import com.github.noamm9.utils.WorldUtils
+import com.github.noamm9.utils.dungeons.RouteImportParser
 import com.github.noamm9.utils.dungeons.enums.SecretType
 import com.github.noamm9.utils.dungeons.map.core.RoomState
 import com.github.noamm9.utils.dungeons.map.utils.ScanUtils
@@ -37,7 +40,19 @@ object DungeonWaypoints: Feature("Add a custom waypoint with /ndw add while look
     private val essenceColor by ColorSetting("Essence Color", Color.BLACK, false)
     private val keyColor by ColorSetting("Redstone Key Color", Color.RED, false)
 
-    data class DungeonWaypoint(val pos: BlockPos, val color: Color, val filled: Boolean, val outline: Boolean, val phase: Boolean)
+    private val importButton by ButtonSetting("Import Route (clipboard)") { importFromClipboard() }.section("Import")
+    private val resetImportButton by ButtonSetting("Reset Imported Waypoints") { clearAllWaypoints() }.withDescription("Removes all custom waypoints, keeping only the built-in ones.")
+
+    val titleColor by ColorSetting("Title Color", Color.WHITE, false).section("Titles").withDescription("Color of the waypoint title text.")
+    val titleScale by SliderSetting("Title Size", 4f, 0.5f, 25f, 0.1f).withDescription("Text size of waypoint titles.")
+    val titleBackground by ToggleSetting("Title Background", true).withDescription("Draws a background behind titles.")
+    val titleBgOpacity by SliderSetting("Background Opacity", 65, 0, 100, 1).showIf { titleBackground.value }.withDescription("Opacity of the title background.")
+
+    data class DungeonWaypoint(
+        val pos: BlockPos, val color: Color, val filled: Boolean,
+        val outline: Boolean, val phase: Boolean,
+        val title: String? = null,
+    )
     private data class SecretWaypoint(val pos: BlockPos, val type: SecretType) {
         val color = when (type) {
             SecretType.REDSTONE_KEY -> keyColor
@@ -117,11 +132,21 @@ object DungeonWaypoints: Feature("Add a custom waypoint with /ndw add while look
             }
             else currentRoomWaypoints
 
+            val titleBg = if (titleBackground.value) ((titleBgOpacity.value * 2.55).toInt() shl 24) else 0
             for (wp in waypoints) {
                 Render3D.renderBlock(
                     event.ctx, wp.pos, wp.color,
-                    outline = wp.outline, fill = wp.filled, phase = wp.phase
+                    outline = wp.outline, fill = wp.filled, phase = wp.phase,
+                    lineWidth = lineWidth.value
                 )
+                wp.title?.let { title ->
+                    val scale = titleScale.value
+                    Render3D.renderString(
+                        title,
+                        wp.pos.x + 0.5, wp.pos.y + 0.5 + 0.1 * scale, wp.pos.z + 0.5,
+                        titleColor.value, scale, wp.phase, titleBg
+                    )
+                }
             }
 
             if (! secretWaypoints.value) return@register
@@ -164,5 +189,41 @@ object DungeonWaypoints: Feature("Add a custom waypoint with /ndw add while look
 
         currentRoomWaypoints.removeIf { it.pos == absPos }
         currentRoomWaypoints.add(absWaypoint)
+    }
+
+    fun importFromClipboard() {
+        val parsed = RouteImportParser.parse(NoammAddons.mc.keyboardHandler.clipboard).getOrElse {
+            return ChatUtils.modMessage("§cImport failed: ${it.message}")
+        }
+
+        for ((roomName, route) in parsed) {
+            waypoints.get()[roomName] = route.map {
+                DungeonWaypoint(BlockPos(it.x, it.y, it.z), it.color, it.filled, it.outline, it.phase, it.title)
+            }.toMutableList()
+        }
+
+        waypoints.save()
+        refreshCurrentRoomWaypoints()
+        val wpCount = parsed.values.sumOf { it.size }
+        ChatUtils.modMessage("§aImported §e$wpCount§a waypoints in §e${parsed.size}§a rooms.")
+    }
+
+    fun clearAllWaypoints() {
+        val count = waypoints.get().values.sumOf { it.size }
+        if (count == 0) return ChatUtils.modMessage("§eNo custom waypoints to clear.")
+        waypoints.get().clear()
+        waypoints.save()
+        currentRoomWaypoints.clear()
+        ChatUtils.modMessage("§aCleared §e$count§a custom waypoints.")
+    }
+
+    private fun refreshCurrentRoomWaypoints() {
+        val room = ScanUtils.currentRoom ?: return
+        val rotation = 360 - (room.rotation ?: return)
+        val corner = room.corner ?: return
+        currentRoomWaypoints.clear()
+        waypoints.get()[room.name]
+            ?.map { it.copy(pos = ScanUtils.getRealCoord(it.pos, corner, rotation)) }
+            ?.let { currentRoomWaypoints.addAll(it) }
     }
 }

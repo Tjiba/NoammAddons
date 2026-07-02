@@ -41,6 +41,7 @@ object DungeonWaypoints: Feature("Add a custom waypoint with /ndw add while look
     private val keyColor by ColorSetting("Redstone Key Color", Color.RED, false)
 
     private val importButton by ButtonSetting("Import Route (clipboard)") { importFromClipboard() }.section("Import")
+    private val exportButton by ButtonSetting("Export Route (clipboard)") { exportToClipboard() }.withDescription("Copies all custom waypoints to the clipboard as a shareable route.")
     private val resetImportButton by ButtonSetting("Reset Imported Waypoints") { clearAllWaypoints() }.withDescription("Removes all custom waypoints, keeping only the built-in ones.")
 
     val titleColor by ColorSetting("Title Color", Color.WHITE, false).section("Titles").withDescription("Color of the waypoint title text.")
@@ -52,6 +53,7 @@ object DungeonWaypoints: Feature("Add a custom waypoint with /ndw add while look
         val pos: BlockPos, val color: Color, val filled: Boolean,
         val outline: Boolean, val phase: Boolean,
         val title: String? = null,
+        val titleColor: Color? = null,
     )
     private data class SecretWaypoint(val pos: BlockPos, val type: SecretType) {
         val color = when (type) {
@@ -144,7 +146,7 @@ object DungeonWaypoints: Feature("Add a custom waypoint with /ndw add while look
                     Render3D.renderString(
                         title,
                         wp.pos.x + 0.5, wp.pos.y + 0.5 + 0.1 * scale, wp.pos.z + 0.5,
-                        titleColor.value, scale, wp.phase, titleBg
+                        wp.titleColor ?: titleColor.value, scale, wp.phase, titleBg
                     )
                 }
             }
@@ -172,8 +174,8 @@ object DungeonWaypoints: Feature("Add a custom waypoint with /ndw add while look
         }
     }
 
-    fun saveWaypoint(absPos: BlockPos, relPos: BlockPos, roomName: String, color: Color, filled: Boolean, outline: Boolean, phase: Boolean) {
-        val newWaypoint = DungeonWaypoint(relPos, color, filled, outline, phase)
+    fun saveWaypoint(absPos: BlockPos, relPos: BlockPos, roomName: String, color: Color, filled: Boolean, outline: Boolean, phase: Boolean, title: String? = null, titleColor: Color? = null) {
+        val newWaypoint = DungeonWaypoint(relPos, color, filled, outline, phase, title, titleColor)
         val absWaypoint = newWaypoint.copy(pos = absPos)
 
         waypoints.get().compute(roomName) { _, list ->
@@ -198,7 +200,7 @@ object DungeonWaypoints: Feature("Add a custom waypoint with /ndw add while look
 
         for ((roomName, route) in parsed) {
             waypoints.get()[roomName] = route.map {
-                DungeonWaypoint(BlockPos(it.x, it.y, it.z), it.color, it.filled, it.outline, it.phase, it.title)
+                DungeonWaypoint(BlockPos(it.x, it.y, it.z), it.color, it.filled, it.outline, it.phase, it.title, it.titleColor)
             }.toMutableList()
         }
 
@@ -206,6 +208,18 @@ object DungeonWaypoints: Feature("Add a custom waypoint with /ndw add while look
         refreshCurrentRoomWaypoints()
         val wpCount = parsed.values.sumOf { it.size }
         ChatUtils.modMessage("§aImported §e$wpCount§a waypoints in §e${parsed.size}§a rooms.")
+    }
+
+    fun exportToClipboard() {
+        val count = waypoints.get().values.sumOf { it.size }
+        if (count == 0) return ChatUtils.modMessage("§eNo custom waypoints to export.")
+
+        val routes = waypoints.get().mapValues { (_, list) ->
+            list.map { RouteImportParser.ParsedWaypoint(it.pos.x, it.pos.y, it.pos.z, it.color, it.filled, it.outline, it.phase, it.title, it.titleColor) }
+        }
+
+        NoammAddons.mc.keyboardHandler.clipboard = RouteImportParser.export(routes)
+        ChatUtils.modMessage("§aExported §e$count§a waypoints to clipboard.")
     }
 
     fun clearAllWaypoints() {

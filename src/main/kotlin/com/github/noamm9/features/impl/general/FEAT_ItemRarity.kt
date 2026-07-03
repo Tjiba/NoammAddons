@@ -11,12 +11,14 @@ import com.github.noamm9.utils.items.ItemRarity
 import com.github.noamm9.utils.items.ItemUtils
 import com.github.noamm9.utils.items.ItemUtils.customData
 import com.github.noamm9.utils.location.LocationUtils
+import com.github.noamm9.utils.render.RectBatch
 import com.github.noamm9.utils.render.Render2D
 import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.network.chat.Component
 import net.minecraft.resources.Identifier
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.component.CustomData
+import java.awt.Color
 import kotlin.jvm.optionals.getOrDefault
 import kotlin.jvm.optionals.getOrNull
 
@@ -69,26 +71,41 @@ object FEAT_ItemRarity: Feature(name = "Item Rarity", description = "Draws the r
         }
     }
 
+    private fun rarityOf(stack: ItemStack?): ItemRarity? {
+        if (! LocationUtils.inSkyblock || stack == null) return null
+        return ItemUtils.getRarity(stack).takeUnless { it == ItemRarity.NONE }
+    }
+
+    private val ItemRarity.fillColor get() = color.withAlpha(rarityOpacity.value / 100)
+
+    private fun rect(ctx: GuiGraphicsExtractor, batch: RectBatch?, x: Int, y: Int, w: Int, h: Int, color: Color) {
+        if (batch != null) batch.add(x, y, w, h, color.rgb)
+        else ctx.fill(x, y, x + w, y + h, color.rgb)
+    }
+
+    private fun border(ctx: GuiGraphicsExtractor, batch: RectBatch?, x: Int, y: Int, color: Color) {
+        if (batch == null) return Render2D.drawBorder(ctx, x, y, 16, 16, color)
+        val argb = color.rgb
+        batch.add(x, y, 16, 1, argb)
+        batch.add(x, y + 15, 16, 1, argb)
+        batch.add(x, y + 1, 1, 14, argb)
+        batch.add(x + 15, y + 1, 1, 14, argb)
+    }
+
     /**
      * @see com.github.noamm9.mixin.MixinGui
+     * @param batch when non-null, the solid-colour styles (fill/border) are collected into it instead of
+     *   drawn per-slot — lets the storage overlay batch them; the Circle texture style always draws per-slot.
      */
     @JvmStatic
-    fun onSlotDraw(ctx: GuiGraphicsExtractor, stack: ItemStack?, x: Int, y: Int) {
-        if (! LocationUtils.inSkyblock) return
-        if (stack == null) return
-
-        val rarity = ItemUtils.getRarity(stack)
-        if (rarity == ItemRarity.NONE) return
-        val color = rarity.color.withAlpha(rarityOpacity.value / 100)
-
+    @JvmOverloads
+    fun onSlotDraw(ctx: GuiGraphicsExtractor, stack: ItemStack?, x: Int, y: Int, batch: RectBatch? = null) {
+        val rarity = rarityOf(stack) ?: return
+        val color = rarity.fillColor
         when (style.value) {
-            0 -> ctx.fill(x, y, x + 16, y + 16, color.rgb)
-            1 -> Render2D.drawBorder(ctx, x, y, 16, 16, color)
-            2 -> {
-                ctx.fill(x, y, x + 16, y + 16, color.rgb)
-                Render2D.drawBorder(ctx, x, y, 16, 16, rarity.color)
-            }
-
+            0 -> rect(ctx, batch, x, y, 16, 16, color)
+            1 -> border(ctx, batch, x, y, color)
+            2 -> { rect(ctx, batch, x, y, 16, 16, color); border(ctx, batch, x, y, rarity.color) }
             3 -> Render2D.drawTexture(ctx, circleTexture, x, y, 16, 16, color)
         }
     }

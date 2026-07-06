@@ -23,8 +23,8 @@ jobs:
         with:
           name: NoammAddons-jars
           path: |
-            build/libs/*-legit-PERSO.jar
-            build/libs/*-cheat-PERSO.jar
+            build/libs/*-legit.jar
+            build/libs/*-cheat.jar
           compression-level: 0
       - name: generate nightly download link
         run: |

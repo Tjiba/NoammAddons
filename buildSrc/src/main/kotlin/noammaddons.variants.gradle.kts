@@ -90,7 +90,7 @@ tasks.named("legitClasses") {
 val jarCheat = tasks.register<Jar>("jarCheat") {
     dependsOn("cheatClasses", "processCheatResources")
     from(cheatSourceSet.output)
-    archiveClassifier.set("cheat")
+    archiveClassifier.set("cheat-PERSO")
     destinationDirectory.set(libsDir)
     from("LICENSE") { rename { "${it}_$mod_name" } }
 }
@@ -98,7 +98,7 @@ val jarCheat = tasks.register<Jar>("jarCheat") {
 val jarLegit = tasks.register<Jar>("jarLegit") {
     dependsOn("legitClasses", "processLegitResources")
     from(legitSourceSet.output)
-    archiveClassifier.set("legit")
+    archiveClassifier.set("legit-PERSO")
     destinationDirectory.set(libsDir)
     from("LICENSE") { rename { "${it}_$mod_name" } }
 }
